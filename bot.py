@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
+import random
 
 # load environment variables from .env
 load_dotenv()
@@ -39,5 +40,26 @@ async def on_ready():
     print("Mingyu Bot just logged in!")
     channel = bot.get_channel(CHANNEL_ID)
     await channel.send(f"Yo! Mingyu bot just logged in.")
+
+@bot.command()
+async def drop(ctx):
+    # retrieve the user's id, the person who used the command
+    user_id = ctx.author.id
+    channel = bot.get_channel(CHANNEL_ID)
+    # when the user uses !drop, this will print
+    await channel.send(f"🚨 {ctx.author.mention} came to drop some photocards! 🚨")
+
+    # drop 3 random cards from cards list
+    dropped_cards = random.sample(cards, 3)
+
+    # reactions in order 
+    reactions = ["🫰", "🫶", "🥰"]
+
+    for index, card in enumerate(dropped_cards):
+        # randomly assign rarity
+        rarity = random.choice(list(rarities.key()), weights=rarities.values(), k=1)[0]
+
+
+
 
 bot.run(TOKEN)
