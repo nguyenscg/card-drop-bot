@@ -52,13 +52,26 @@ async def drop(ctx):
     # drop 3 random cards from cards list
     dropped_cards = random.sample(cards, 3)
 
-    # reactions in order 
+    # reactions in order of cards
     reactions = ["🫰", "🫶", "🥰"]
 
     for index, card in enumerate(dropped_cards):
         # randomly assign rarity
-        rarity = random.choice(list(rarities.key()), weights=rarities.values(), k=1)[0]
+        rarity = random.choices(list(rarities.keys()), weights=rarities.values(), k=1)[0]
 
+        # create embed for each card
+        embed = discord.Embed(
+            title=f"{rarity} Card Dropped!",
+            description=f"**{card['name']}** - **{card['group']}**",
+            color=discord.Color.blue()
+        )
+        embed.set_image(url=card['image'])
+
+        # send embed 
+        message = await ctx.send(embed=embed)
+
+        # add the reactions to message
+        await message.add_reaction(reactions[index])
 
 
 
