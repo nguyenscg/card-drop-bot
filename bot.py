@@ -3,6 +3,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import os
 import random
+import time
 
 # load environment variables from .env
 load_dotenv()
@@ -36,6 +37,9 @@ rarities = {
 
 # initialize empty dictionary to save card info
 message_card_map = {}
+
+# initialize grab cooldown
+grab_cooldowns = {}
 
 
 @bot.event
@@ -100,8 +104,26 @@ async def on_reaction_add(reaction, user):
     # Get the card's info, the user grabs
     card = message_card_map.get(message_id)
 
+    # check if card exists
+    if not card:
+        return
+
+    # add cooldown for grab
+    cooldown_time = 3600 # seconds -> 1 hour
+    current_time = time.time()
+    
+    # check if the user is on cooldown
+    last_grab = grab_cooldowns.get(user_id, 0)
+    if current_time - last_grab < cooldown_time:
+        remaining_time = cooldown_time - (current_time - last_grab)
+        await reaction.message.channel.send(f"{user.mention} You already grabbed a photocard! Wait {round(remaining_time)} before grabbing another!")
+        return
+
+    # update cooldown
+    grab_cooldowns[user_id] = current_time
     # send the message in the channel if user reacts to grab a card
     await reaction.message.channel.send(f"{user.mention} gained a **{card['name']}** photocard! 🤭")
+
 
 @drop.error
 async def drop_error(ctx, error):
