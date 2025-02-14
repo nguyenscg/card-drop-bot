@@ -49,12 +49,9 @@ grab_cooldowns = {}
 user_collection = {}
 
 # load data
-try:
-    with open("collection.json", "r") as data_file:
-        usercollection = json.load(data_file)
-except FileNotFoundError:
-    # initialize user's collection
-    user_collection = {}
+if os.path.exists("collection.json"):
+    with open("collection", "r") as data_file:
+        user_collection = json.load(data_file)
 
 # save data
 with open("collection.json", "w") as data_file:
