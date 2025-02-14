@@ -45,6 +45,7 @@ async def on_ready():
     await channel.send(f"Yo! Mingyu bot just logged in.")
 
 @bot.command()
+@commands.cooldown(1, 3600, commands.BucketType.user)
 async def drop(ctx):
     # retrieve the user's id, the person who used the command
     user_id = ctx.author.id
@@ -96,11 +97,16 @@ async def on_reaction_add(reaction, user):
     user_id = user.id
     message_id = reaction.message.id
 
-    # Get the card's info
+    # Get the card's info, the user grabs
     card = message_card_map.get(message_id)
 
     # send the message in the channel if user reacts to grab a card
     await reaction.message.channel.send(f"{user.mention} gained a **{card['name']}** photocard! 🤭")
+
+@drop.error
+async def drop_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        await ctx.send(f"{ctx.author.mention}, you need to wait {round(error.retry_after)} seconds before using the command again.")
 
 
 bot.run(TOKEN)
