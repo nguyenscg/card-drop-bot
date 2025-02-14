@@ -171,6 +171,8 @@ async def drop(ctx):
     else:
         print("Failed to download all images.")
         await ctx.send("Failed to process the card images.")
+    # Update cooldown for the user
+    drop_cooldowns[user_id] = current_time
 
 
 
