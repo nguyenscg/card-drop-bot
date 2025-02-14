@@ -114,11 +114,9 @@ async def drop(ctx):
         await ctx.send(f"{ctx.author.mention}, please wait {timer_message} before dropping again!")
         return
 
-    # Announce the drop
-    await channel.send(f"🚨 {ctx.author.mention} came to drop some photocards! 🚨")
+    # Announce the drop (but without reactions yet)
+    drop_message = await channel.send(f"🚨 {ctx.author.mention} came to drop some photocards! 🚨")
 
-    # reactions
-    reactions = ["🫰", "🫶", "🥰"]
     # Ensure there are enough cards to sample from
     if len(cards) < 3:
         print("Error: Not enough cards to sample from.")
@@ -139,7 +137,7 @@ async def drop(ctx):
         title="✨ Card Drop! ✨",
         description=f"{ctx.author.mention} just dropped some cards!",
         color=discord.Color.blue()
-        )
+    )
 
     # Process and display the dropped cards
     card_images = []
@@ -167,38 +165,25 @@ async def drop(ctx):
         embed.set_image(url=f"attachment://{merged_image_path}")
         
         # Send the embed and the image
-        await ctx.send(embed=embed, file=discord.File(merged_image_path))
+        message = await ctx.send(embed=embed, file=discord.File(merged_image_path))
+
+        # Add reactions after sending the image
+        reactions = ["🫰", "🫶", "🥰"]
+        for reaction in reactions:
+            await message.add_reaction(reaction)
+
     else:
         print("Failed to download all images.")
         await ctx.send("Failed to process the card images.")
+    
     # Update cooldown for the user
     drop_cooldowns[user_id] = current_time
 
 
 
+
 # @bot.command()
 # async def drop(ctx):
-#     user_id = ctx.author.id
-#     channel = bot.get_channel(CHANNEL_ID)
-#     cooldown_timer = 3600
-#     current_time = time.time()
-
-#     # Check cooldown
-#     last_drop = drop_cooldowns.get(user_id, 0)
-#     if current_time - last_drop < cooldown_timer:
-#         remaining_time = cooldown_timer - (current_time - last_drop)
-#         hours, remainder = divmod(remaining_time, 3600)
-#         minutes, seconds = divmod(remainder, 60)
-#         timer_message = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
-#         await ctx.send(f"{ctx.author.mention}, please wait {timer_message} before dropping again!")
-#         return
-
-#     # Announce the drop
-#     await channel.send(f"🚨 {ctx.author.mention} came to drop some photocards! 🚨")
-
-#     # reactions
-#     reactions = ["🫰", "🫶", "🥰"]
-
 #     # Drop 3 random cards
 #     unique_cards = {card['image']: card for card in cards}.values()  # Remove duplicates based on image URL
     
