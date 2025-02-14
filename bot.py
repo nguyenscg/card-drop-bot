@@ -38,8 +38,12 @@ rarities = {
 # initialize empty dictionary to save card info
 message_card_map = {}
 
+# initialize drop cooldown
+drop_cooldowns = {}
+
 # initialize grab cooldown
 grab_cooldowns = {}
+
 
 
 @bot.event
@@ -49,11 +53,24 @@ async def on_ready():
     await channel.send(f"Yo! Mingyu bot just logged in.")
 
 @bot.command()
-@commands.cooldown(1, 3600, commands.BucketType.user)
 async def drop(ctx):
     # retrieve the user's id, the person who used the command
     user_id = ctx.author.id
     channel = bot.get_channel(CHANNEL_ID)
+    
+    cooldown_timer = 3600
+    current_time = time.time()
+
+    last_drop = drop_cooldowns.get(user_id, 0)
+    if current_time - last_drop < cooldown_timer:
+        remaining_time = cooldown_timer - (current_time - last_drop)
+
+        hours, remainder = divmod(remaining_time, cooldown_timer)
+        minutes, seconds = divmod(remainder, 60)
+        timer_message = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+
+        await ctx.send(f"{ctx.author.mention}, you already dropped cards! Please wait {timer_message} until dropping again!")
+        return
     # when the user uses !drop, this will print
     await channel.send(f"🚨 {ctx.author.mention} came to drop some photocards! 🚨")
 
@@ -91,6 +108,7 @@ async def drop(ctx):
 
         # store card info
         message_card_map[message.id] = card_info
+    drop_cooldowns[user_id] = current_time
 
 @bot.event
 async def on_reaction_add(reaction, user):
@@ -125,13 +143,7 @@ async def on_reaction_add(reaction, user):
     # update cooldown
     grab_cooldowns[user_id] = current_time
     # send the message in the channel if user reacts to grab a card
-    await reaction.message.channel.send(f"{user.mention} gained a **{card['name']}** photocard! 🤭")
-
-
-@drop.error
-async def drop_error(ctx, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        await ctx.send(f"{ctx.author.mention}, you need to wait {round(error.retry_after)} seconds before using the command again.")
+    await reaction.message.channel.send(f"{user.mention} gained a **{card['name']}** photocard! 🤩")
 
 
 bot.run(TOKEN)
