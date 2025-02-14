@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 import random
 import time
+import json
 
 # load environment variables from .env
 load_dotenv()
@@ -47,6 +48,17 @@ grab_cooldowns = {}
 # initialize user's collection
 user_collection = {}
 
+# load data
+try:
+    with open("collection.json", "r") as data_file:
+        usercollection = json.load(data_file)
+except FileNotFoundError:
+    # initialize user's collection
+    user_collection = {}
+
+# save data
+with open("collection.json", "w") as data_file:
+    json.dump(user_collection, data_file, indent=4)
 
 
 @bot.event
@@ -133,6 +145,15 @@ async def on_reaction_add(reaction, user):
     if user_id not in user_collection:
         user_collection[user_id] = []
 
+    # add to the user's collection if they haven't grabbed it already
+    if card not in user_collection[user_id]:
+        user_collection[user_id].append(card)
+
+        # update json file
+        with open("collection.json", "w") as data_file:
+            json.dump(user_collection, data_file, indent=4)
+    
+
     # add cooldown for grab
     cooldown_time = 3600 # seconds -> 1 hour
     current_time = time.time()
@@ -149,9 +170,6 @@ async def on_reaction_add(reaction, user):
 
     # update cooldown
     grab_cooldowns[user_id] = current_time
-
-    # add the card to the user's collection
-    user_collection[user_id].append(card)
 
     # send the message in the channel if user reacts to grab a card
     await reaction.message.channel.send(f"{user.mention} gained a **{card['name']}** photocard! 🤩")
