@@ -116,7 +116,10 @@ async def on_reaction_add(reaction, user):
     last_grab = grab_cooldowns.get(user_id, 0)
     if current_time - last_grab < cooldown_time:
         remaining_time = cooldown_time - (current_time - last_grab)
-        await reaction.message.channel.send(f"{user.mention} You already grabbed a photocard! Wait {round(remaining_time)} before grabbing another!")
+        hours, remainder = divmod(remaining_time, cooldown_time)
+        minutes, seconds = divmod(remainder, 60)
+        time_left = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+        await reaction.message.channel.send(f"{user.mention} You already grabbed a photocard! Wait {time_left} before grabbing another!")
         return
 
     # update cooldown
