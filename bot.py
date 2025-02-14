@@ -44,6 +44,9 @@ drop_cooldowns = {}
 # initialize grab cooldown
 grab_cooldowns = {}
 
+# initialize user's collection
+user_collection = {}
+
 
 
 @bot.event
@@ -125,6 +128,10 @@ async def on_reaction_add(reaction, user):
     # check if card exists
     if not card:
         return
+    
+    # if the user doesn't have an inventory, initialize it/create an inventory for them
+    if user_id not in user_collection:
+        user_collection[user_id] = []
 
     # add cooldown for grab
     cooldown_time = 3600 # seconds -> 1 hour
@@ -142,8 +149,34 @@ async def on_reaction_add(reaction, user):
 
     # update cooldown
     grab_cooldowns[user_id] = current_time
+
+    # add the card to the user's collection
+    user_collection[user_id].append(card)
+
     # send the message in the channel if user reacts to grab a card
     await reaction.message.channel.send(f"{user.mention} gained a **{card['name']}** photocard! 🤩")
 
+@bot.command()
+async def collection(ctx):
+    user_id = ctx.author.id
+
+    if user_id not in user_collection:
+        await ctx.send(f"{ctx.author.mention} your collection looks empty right now. Use !drop if you want to start collecting!")
+        return
+    
+    # get the user's collection
+    collection = user_collection[user_id]
+
+    embed = discord.Embed(
+        title=f"**{ctx.author.display_name}'s collection**",
+        color=discord.Color.blue()
+    )
+    for card in collection:
+        embed.add_field(
+            name=f"**{card['group']}**",
+            value=f"**{card['name']}** - **Rarity**: {card['rarity']}",
+            inline=False
+        )
+    await ctx.send(embed=embed)
 
 bot.run(TOKEN)
