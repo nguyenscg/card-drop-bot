@@ -137,8 +137,22 @@ async def on_reaction_add(reaction, user):
     # Get the card's info, the user grabs
     card = message_card_map.get(message_id)
 
-    # check if card exists
+    # check if card exists, return early if it doesn't
     if not card:
+        return
+    
+    # add cooldown for grab
+    cooldown_time = 3600 # seconds -> 1 hour
+    current_time = time.time()
+
+    # check if the user is on cooldown
+    last_grab = grab_cooldowns.get(user_id, 0)
+    if current_time - last_grab < cooldown_time:
+        remaining_time = cooldown_time - (current_time - last_grab)
+        hours, remainder = divmod(remaining_time, cooldown_time)
+        minutes, seconds = divmod(remainder, 60)
+        time_left = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+        await reaction.message.channel.send(f"{user.mention} You already grabbed a photocard! Wait {time_left} before grabbing another!")
         return
     
     # if the user doesn't have an inventory, initialize it/create an inventory for them
@@ -152,21 +166,6 @@ async def on_reaction_add(reaction, user):
         # update json file
         with open("collection.json", "w") as data_file:
             json.dump(user_collection, data_file, indent=4)
-    
-
-    # add cooldown for grab
-    cooldown_time = 3600 # seconds -> 1 hour
-    current_time = time.time()
-    
-    # check if the user is on cooldown
-    last_grab = grab_cooldowns.get(user_id, 0)
-    if current_time - last_grab < cooldown_time:
-        remaining_time = cooldown_time - (current_time - last_grab)
-        hours, remainder = divmod(remaining_time, cooldown_time)
-        minutes, seconds = divmod(remainder, 60)
-        time_left = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
-        await reaction.message.channel.send(f"{user.mention} You already grabbed a photocard! Wait {time_left} before grabbing another!")
-        return
 
     # update cooldown
     grab_cooldowns[user_id] = current_time
