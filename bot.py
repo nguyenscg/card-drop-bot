@@ -34,6 +34,9 @@ rarities = {
     "Legendary": 10,
 }
 
+# initialize empty dictionary to save card info
+message_card_map = {}
+
 
 @bot.event
 async def on_ready():
@@ -73,6 +76,31 @@ async def drop(ctx):
         # add the reactions to message
         await message.add_reaction(reactions[index])
 
+        # card info
+        card_info = {
+            "name": card['name'],
+            "group": card['group'],
+            "rarity": rarity,
+            "image": card['image'],
+        }
+
+        # store card info
+        message_card_map[message.id] = card_info
+
+@bot.event
+async def on_reaction_add(reaction, user):
+    # ignore the bot's reactions
+    if user == bot.user:
+        return 
+    
+    user_id = user.id
+    message_id = reaction.message.id
+
+    # Get the card's info
+    card = message_card_map.get(message_id)
+
+    # send the message in the channel if user reacts to grab a card
+    await reaction.message.channel.send(f"{user.mention} gained a **{card['name']}** photocard! 🤭")
 
 
 bot.run(TOKEN)
