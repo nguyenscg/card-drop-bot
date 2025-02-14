@@ -5,6 +5,8 @@ import os
 import random
 import time
 import json
+from PIL import Image, ImageOps
+from images_helpers import download_image, add_frame_to_card, resize_image
 
 # load environment variables from .env
 load_dotenv()
@@ -50,7 +52,7 @@ user_collection = {}
 
 # load data
 if os.path.exists("collection.json"):
-    with open("collection", "r") as data_file:
+    with open("collection.json", "r") as data_file:
         user_collection = json.load(data_file)
 
 # save data
@@ -83,44 +85,137 @@ async def drop(ctx):
 
         await ctx.send(f"{ctx.author.mention}, you already dropped cards! Please wait {timer_message} until dropping again!")
         return
-    # when the user uses !drop, this will print
+
     await channel.send(f"🚨 {ctx.author.mention} came to drop some photocards! 🚨")
 
     # drop 3 random cards from cards list
     dropped_cards = random.sample(cards, 3)
 
-    # reactions in order of cards
     reactions = ["🫰", "🫶", "🥰"]
 
     for index, card in enumerate(dropped_cards):
         # randomly assign rarity
         rarity = random.choices(list(rarities.keys()), weights=rarities.values(), k=1)[0]
+        
+        card_url = card['image']
+        frame_path = os.path.join(os.getcwd(), "images", "frame.png")  # Path to the frame image
 
-        # create embed for each card
-        embed = discord.Embed(
-            title=f"{rarity} Card Dropped!",
-            description=f"**{card['name']}** - **{card['group']}**",
-            color=discord.Color.blue()
-        )
-        embed.set_image(url=card['image'])
+        # download image
+        card_img = download_image(card_url)
 
-        # send embed 
-        message = await ctx.send(embed=embed)
+        if card_img:
+            resized_card_img, resized_frame = resize_image(card_img, frame_path)
+            # Add frame to the card image
+            framed_card = add_frame_to_card(resized_card_img, resized_frame)
 
-        # add the reactions to message
-        await message.add_reaction(reactions[index])
+            if framed_card:
+                # Save the framed card image to a path
+                framed_card_path = "framed_card.png"
+                framed_card.save(framed_card_path)
 
-        # card info
-        card_info = {
-            "name": card['name'],
-            "group": card['group'],
-            "rarity": rarity,
-            "image": card['image'],
-        }
+                # Create embed for the card
+                embed = discord.Embed(
+                    title=f"{rarity} Card Dropped!",
+                    description=f"**{card['name']}** - **{card['group']}**",
+                    color=discord.Color.blue()
+                )
 
-        # store card info
-        message_card_map[message.id] = card_info
+                # Create the Discord file object using the saved framed card path
+                file = discord.File(framed_card_path, filename="framed_card.png")
+                
+                # Attach the image in the embed
+                embed.set_image(url="attachment://framed_card.png")
+                
+                # Send the embed with the image and file
+                message = await ctx.send(embed=embed, file=file)
+                
+                # Add reactions to the message
+                await message.add_reaction(reactions[index])
+
+                # card info
+                card_info = {
+                    "name": card['name'],
+                    "group": card['group'],
+                    "rarity": rarity,
+                    "image": framed_card_path,
+                }
+
+                # store card info
+                message_card_map[message.id] = card_info
+
     drop_cooldowns[user_id] = current_time
+
+
+
+
+# @bot.command()
+# async def drop(ctx):
+#     # retrieve the user's id, the person who used the command
+#     user_id = ctx.author.id
+#     channel = bot.get_channel(CHANNEL_ID)
+    
+#     cooldown_timer = 3600
+#     current_time = time.time()
+
+#     last_drop = drop_cooldowns.get(user_id, 0)
+#     if current_time - last_drop < cooldown_timer:
+#         remaining_time = cooldown_timer - (current_time - last_drop)
+
+#         hours, remainder = divmod(remaining_time, cooldown_timer)
+#         minutes, seconds = divmod(remainder, 60)
+#         timer_message = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+
+#         await ctx.send(f"{ctx.author.mention}, you already dropped cards! Please wait {timer_message} until dropping again!")
+#         return
+#     # when the user uses !drop, this will print
+#     await channel.send(f"🚨 {ctx.author.mention} came to drop some photocards! 🚨")
+
+#     # drop 3 random cards from cards list
+#     dropped_cards = random.sample(cards, 3)
+
+
+#     # reactions in order of cards
+#     reactions = ["🫰", "🫶", "🥰"]
+
+#     for index, card in enumerate(dropped_cards):
+#         # randomly assign rarity
+#         rarity = random.choices(list(rarities.keys()), weights=rarities.values(), k=1)[0]
+        
+#         card_url = card['image']
+#         framed_path = os.path.join(os.getcwd(), "framed_card.png")  # Update with your frame path
+
+#         # download image and frame
+#         card_img = download_image(card_url)
+#         if card_img:
+#             # add frame to image, ensure it goes to path
+#             framed_card_path = add_frame_to_card(card_img, framed_path)
+
+#             if framed_card_path:
+#                 # create embed for each card
+#                 embed = discord.Embed(
+#                     title=f"{rarity} Card Dropped!",
+#                     description=f"**{card['name']}** - **{card['group']}**",
+#                     color=discord.Color.blue()
+#                 )
+#                 file = discord.File(framed_card_path, filename="framed_card.png")
+#                 embed.set_image(url="attachment://framed_card.png")
+                
+#                 # send embed 
+#                 message = await ctx.send(embed=embed, file=file)
+                
+#                 # add the reactions to message
+#                 await message.add_reaction(reactions[index])
+#         # card info
+#         card_info = {
+#             "name": card['name'],
+#             "group": card['group'],
+#             "rarity": rarity,
+#             "image": framed_card_path,
+#         }
+
+#         # store card info
+#         message_card_map[message.id] = card_info
+#     drop_cooldowns[user_id] = current_time
 
 @bot.event
 async def on_reaction_add(reaction, user):
