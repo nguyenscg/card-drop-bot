@@ -7,6 +7,7 @@ import time
 import json
 from PIL import Image, ImageOps
 from images_helpers import download_image, resize_image, add_frame_to_card, merge_images_horizontally
+from data_helpers import load_collection, save_collection, add_card_to_collection
 
 
 # load environment variables from .env
@@ -14,9 +15,10 @@ load_dotenv()
 
 # get token from env
 TOKEN = os.getenv('BOT_TOKEN')
-CHANNEL_ID = 1339716688748216392
+CHANNEL_ID = 1339285083302920277
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+collection_data = load_collection()
 
 # Load cards from the JSON file at startup
 try:
@@ -202,25 +204,23 @@ grab_cooldowns = {}
 
 @bot.event
 async def on_reaction_add(reaction, user):
-    # Ignore the bot's reactions
-    if user == bot.user:
-        return
-    
+    """Handles card collection when a user reacts"""
+    if user.bot:
+        return  # Ignore bot reactions
+
     user_id = user.id
     message_id = reaction.message.id
 
     # Get the list of cards from the message map
     cards = message_card_map.get(message_id)
 
-    # If no cards exist, return early
     if not cards:
-        return
+        return  # If no cards are linked to this message, ignore
 
-    # Define cooldown time (e.g., 1 hour = 3600 seconds)
+    # Cooldown check
     cooldown_timer = 3600  # 1 hour cooldown
     current_time = time.time()
 
-    # Check if the user is on cooldown
     last_grab = grab_cooldowns.get(user_id, 0)
     if current_time - last_grab < cooldown_timer:
         remaining_time = cooldown_timer - (current_time - last_grab)
@@ -230,65 +230,43 @@ async def on_reaction_add(reaction, user):
         await reaction.message.channel.send(f"{user.mention}, please wait {timer_message} before grabbing another card!")
         return
 
-    # Check the emoji of the reaction and map it to the correct card
-    if reaction.emoji == "🫰":
-        card = cards[0]  # First card
-    elif reaction.emoji == "🫶":
-        card = cards[1]  # Second card
-    elif reaction.emoji == "🥰":
-        card = cards[2]  # Third card
-    else:
-        return
+    # Map reactions to cards
+    emoji_to_card = {"🫰": 0, "🫶": 1, "🥰": 2}
+    if reaction.emoji in emoji_to_card:
+        selected_card = cards[emoji_to_card[reaction.emoji]]
 
-    # Process the card grab (frame and update cooldown)
-    if not os.path.isfile(frame_path):
-        await reaction.message.channel.send(f"Oops! The frame file is missing. Please try again later.")
-        return
+        # Save card to user's collection
+        add_card_to_collection(user_id, selected_card)
 
-    # Download the card image
-    card_image = download_image(card['image'])
-    if not card_image:
-        await reaction.message.channel.send(f"Failed to download card image for {card['name']}")
-        return
-    
-    rarity = card.get('rarity', 'Unknown')
+        rarity = selected_card.get('rarity', 'Unknown')
 
-    # Add frame to the card
-    framed_card = add_frame_to_card(card_image, frame_path)
-    if framed_card:
-        # Send a message to the channel indicating the user picked up the card
-        await reaction.message.channel.send(f"{user.mention} gained {rarity}-Tier **{card['name']}** photocard! 🤩")
-        print(f"Framed card {card['name']} added!")
+        await reaction.message.channel.send(f"{user.mention} gained a {rarity}-Tier **{selected_card['name']}** photocard! 🤩")
 
-        # Update the cooldown for the user
-        grab_cooldowns[user_id] = current_time  # Update the last grab time for the user
-    else:
-        print(f"Failed to frame card {card['name']}")
+        # Update cooldown
+        grab_cooldowns[user_id] = current_time
 
 
 
 
 @bot.command()
 async def collection(ctx):
-    user_id = ctx.author.id
+    """Displays the user's collected cards"""
+    user_id = str(ctx.author.id)
+    collection_data = load_collection()
 
-    if user_id not in user_collection:
-        await ctx.send(f"{ctx.author.mention} your collection looks empty right now. Use !drop if you want to start collecting!")
+    if user_id not in collection_data or not collection_data[user_id]:
+        await ctx.send(f"{ctx.author.mention}, you don't have any photocards yet! 🃏")
         return
-    
-    # get the user's collection
-    collection = user_collection[user_id]
 
+    # Build an embed with all collected cards
     embed = discord.Embed(
-        title=f"**{ctx.author.display_name}'s collection**",
-        color=discord.Color.blue()
+        title=f"{ctx.author.name}'s Collection",
+        color=discord.Color.green()
     )
-    for card in collection:
-        embed.add_field(
-            name=f"**{card['group']}**",
-            value=f"**{card['name']}** - **Rarity**: {card['rarity']}",
-            inline=False
-        )
+
+    for card in collection_data[user_id]:
+        embed.add_field(name=card['group'], value=f"{card.get('rarity', 'Unknown')} - **{card['name']}**", inline=False)
+
     await ctx.send(embed=embed)
 
 bot.run(TOKEN)
