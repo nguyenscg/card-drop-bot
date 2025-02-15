@@ -187,7 +187,11 @@ async def drop(ctx):
             print(f"Failed to delete {merged_image_path}: {e}")
 
         # Map the dropped cards to the message
-        message_card_map[message.id] = dropped_cards
+        message_card_map[message.id] = {
+            "cards": dropped_cards,
+            "user_dropped": user_id,
+            "drop_time": current_time,
+        }
 
         # Add reactions after sending the image
         reactions = ["🫰", "🫶", "🥰"]
@@ -218,14 +222,26 @@ async def on_reaction_add(reaction, user):
     message_id = reaction.message.id
 
     # Get the list of cards from the message map
-    cards = message_card_map.get(message_id)
+    cards_data = message_card_map.get(message_id)
 
-    if not cards:
+    if not cards_data:
         return  # If no cards are linked to this message, ignore
-
+    
+    cards = cards_data['cards']
+    user_drop_id = cards_data['user_dropped']
+    drop_time = cards_data['drop_time']
+        
     # Cooldown check
     cooldown_timer = 3600  # 1 hour cooldown
     current_time = time.time()
+    timeframe = 60
+
+    if current_time - drop_time > timeframe:
+        await reaction.message.channel.send(f"Photocards are no longer available to claim!")
+        return
+    
+    if user.id == user_drop_id:
+        await reaction.message.channel.send("Woo!")
 
     last_grab = grab_cooldowns.get(user_id, 0)
     if current_time - last_grab < cooldown_timer:
@@ -235,21 +251,22 @@ async def on_reaction_add(reaction, user):
         timer_message = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
         await reaction.message.channel.send(f"{user.mention}, please wait {timer_message} before grabbing another card!")
         return
+    
+    if current_time - drop_time <= timeframe:
+        # Map reactions to cards
+        emoji_to_card = {"🫰": 0, "🫶": 1, "🥰": 2}
+        if reaction.emoji in emoji_to_card:
+            selected_card = cards[emoji_to_card[reaction.emoji]]
 
-    # Map reactions to cards
-    emoji_to_card = {"🫰": 0, "🫶": 1, "🥰": 2}
-    if reaction.emoji in emoji_to_card:
-        selected_card = cards[emoji_to_card[reaction.emoji]]
+            # Save card to user's collection
+            add_card_to_collection(user_id, selected_card)
 
-        # Save card to user's collection
-        add_card_to_collection(user_id, selected_card)
+            rarity = selected_card.get('rarity', 'Unknown')
 
-        rarity = selected_card.get('rarity', 'Unknown')
+            await reaction.message.channel.send(f"{user.mention} gained a {rarity}-Tier **{selected_card['name']}** photocard! 🤩")
 
-        await reaction.message.channel.send(f"{user.mention} gained a {rarity}-Tier **{selected_card['name']}** photocard! 🤩")
-
-        # Update cooldown
-        grab_cooldowns[user_id] = current_time
+            # Update cooldown
+            grab_cooldowns[user_id] = current_time
 
 
 
