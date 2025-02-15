@@ -5,9 +5,8 @@ import os
 import random
 import time
 import json
-from PIL import Image, ImageOps
 from images_helpers import download_image, resize_image, add_frame_to_card, merge_images_horizontally
-from data_helpers import load_collection, save_collection, add_card_to_collection
+from data_helpers import add_card, load_collection
 
 
 # load environment variables from .env
@@ -50,36 +49,6 @@ grab_cooldowns = {}
 # user_collection = {}
 
 frame_path = "./images/frame.png"
-
-
-
-# Initialize user_collection if the file doesn't exist or is empty
-if os.path.exists("collection.json"):
-    with open("collection.json", "r") as data_file:
-        try:
-            user_collection = json.load(data_file)
-        except json.JSONDecodeError:
-            # Handle case where the JSON is malformed
-            print("Error loading the JSON data. Starting with an empty collection.")
-            user_collection = {}
-else:
-    # If the file doesn't exist, initialize an empty collection
-    user_collection = {}
-
-# Checking for incomplete data in user_collection
-for user_id, cards in user_collection.items():
-    for card in cards:
-        # Check if "image" is missing or empty
-        if not card.get("image"):
-            print(f"Missing image for card: {card['name']} from {card['group']}")
-            card['image'] = "default_image_url"  # Provide a default image URL or path
-
-# Save data
-with open("collection.json", "w") as data_file:
-    json.dump(user_collection, data_file, indent=4)
-
-print("User collection saved successfully.")
-
 
 @bot.event
 async def on_ready():
@@ -214,36 +183,46 @@ grab_cooldowns = {}
 
 @bot.event
 async def on_reaction_add(reaction, user):
-    """Handles card collection when a user reacts"""
     if user.bot:
-        return  # Ignore bot reactions
+        return
+    
+    print(f"Reaction received: {reaction.emoji} from {user.name}")
 
     user_id = user.id
     message_id = reaction.message.id
-
-    # Get the list of cards from the message map
-    cards_data = message_card_map.get(message_id)
-
-    if not cards_data:
-        return  # If no cards are linked to this message, ignore
     
+    print(f"Message card map: {message_card_map}")  # Debugging line
+    cards_data = message_card_map.get(message_id)
+    if not cards_data:
+        print(f"No card data found for message ID {message_id}")  # Debugging line
+        return
     cards = cards_data['cards']
+    print(f"Cards for message ID {message_id}: {cards}")  # Debugging line
+
     user_drop_id = cards_data['user_dropped']
     drop_time = cards_data['drop_time']
-        
+    
     # Cooldown check
     cooldown_timer = 3600  # 1 hour cooldown
     current_time = time.time()
-    timeframe = 60
+    timeframe = 60  # Cards available to claim for 1 minute
 
     if current_time - drop_time > timeframe:
         await reaction.message.channel.send(f"Photocards are no longer available to claim!")
         return
     
-    if user.id == user_drop_id:
-        await reaction.message.channel.send("Woo!")
+    # Reaction handling
+    emoji_to_card = {"🫰": 0, "🫶": 1, "🥰": 2}
+    if reaction.emoji in emoji_to_card:
+        selected_card = cards[emoji_to_card.get(reaction.emoji)]
+        print(f"Selected card: {selected_card}")
+    else:
+        print(f"Reaction emoji {reaction.emoji} not found in emoji_to_card mapping.")
+        return  # If emoji doesn't map to a card, stop here
 
+    # Check if the user can grab a card (cooldown)
     last_grab = grab_cooldowns.get(user_id, 0)
+    timer_message = ""  # Initialize timer_message here
     if current_time - last_grab < cooldown_timer:
         remaining_time = cooldown_timer - (current_time - last_grab)
         hours, remainder = divmod(remaining_time, 3600)
@@ -251,22 +230,44 @@ async def on_reaction_add(reaction, user):
         timer_message = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
         await reaction.message.channel.send(f"{user.mention}, please wait {timer_message} before grabbing another card!")
         return
-    
-    if current_time - drop_time <= timeframe:
-        # Map reactions to cards
-        emoji_to_card = {"🫰": 0, "🫶": 1, "🥰": 2}
-        if reaction.emoji in emoji_to_card:
-            selected_card = cards[emoji_to_card[reaction.emoji]]
 
-            # Save card to user's collection
-            add_card_to_collection(user_id, selected_card)
+    # Dropper's card grabbing logic
+    if user.id == user_drop_id:
+        # Check if the dropper has already grabbed a card
+        if cards_data.get("dropper_grabbed", False):
+            await reaction.message.channel.send(f"{user.mention}, you need to wait! {timer_message}")
+            return
+        else:
+            # Mark that the dropper grabbed a card
+            cards_data["dropper_grabbed"] = True
+            await reaction.message.channel.send(f"{user.mention} gained a {selected_card['rarity']}-Tier **{selected_card['name']}** photocard! 🤩")
+            add_card(user_id, selected_card) # Add card to the collection
+            return
 
-            rarity = selected_card.get('rarity', 'Unknown')
+    # Regular user grabbing card logic
+    if selected_card:
+        confirmation_message = f"{user.mention} gained a {selected_card['rarity']}-Tier **{selected_card['name']}** photocard! 🤩"
+        await reaction.message.channel.send(confirmation_message)
 
-            await reaction.message.channel.send(f"{user.mention} gained a {rarity}-Tier **{selected_card['name']}** photocard! 🤩")
+    # Create Embed with card details
+    embed = discord.Embed(
+        title=f"{selected_card['name']} from {selected_card['group']}",
+        description=f"Rarity: {selected_card['rarity']}",
+        color=discord.Color.blue()
+    )
+    embed.set_image(url=selected_card['image'])
 
-            # Update cooldown
-            grab_cooldowns[user_id] = current_time
+    # Send the embed message
+    await reaction.message.channel.send(f"{user.mention} gained a {selected_card['rarity']}-Tier **{selected_card['name']}** photocard! 🤩", embed=embed)
+
+    # Save card to user's collection
+    print(f"Attempting to add card: {selected_card}")
+    add_card(user_id, selected_card)
+
+    # Update cooldown for the user
+    grab_cooldowns[user_id] = current_time
+
+
 
 
 
