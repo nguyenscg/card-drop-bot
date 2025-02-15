@@ -52,6 +52,7 @@ grab_cooldowns = {}
 frame_path = "./images/frame.png"
 
 
+
 # Initialize user_collection if the file doesn't exist or is empty
 if os.path.exists("collection.json"):
     with open("collection.json", "r") as data_file:
@@ -179,6 +180,11 @@ async def drop(ctx):
             file = discord.File(f, filename="merged_image_with_frame.png")
             embed.set_image(url="attachment://merged_image_with_frame.png")  # Attach image in embed
             message = await ctx.send(embed=embed, file=file)  # Send message with file and embed
+        try:
+            os.remove(merged_image_path)
+            print(f"Deleted temporary file: {merged_image_path}")
+        except Exception as e:
+            print(f"Failed to delete {merged_image_path}: {e}")
 
         # Map the dropped cards to the message
         message_card_map[message.id] = dropped_cards
