@@ -20,27 +20,22 @@ def load_collection():
         return {}
 
 def add_card(user_id, selected_card):
-    # Load the current collection
+    # Load the current user collection
     user_collection = load_collection()
 
-    # Check if the user already has a collection
-    if user_id in user_collection:
-        # Check if the card already exists in the user's collection
-        card_exists = any(card['name'] == selected_card['name'] and card['group'] == selected_card['group'] for card in user_collection[user_id]['cards'])
-        
-        if card_exists:
-            print(f"Card {selected_card['name']} already exists in the collection for user {user_id}.")
-            return  # Don't add the card again
-        else:
-            # Append the new card to the existing collection
-            user_collection[user_id]['cards'].append(selected_card)
-            print(f"Card {selected_card['name']} added to user {user_id}'s collection.")
-    else:
-        # Create a new collection for the user if it doesn't exist
-        user_collection[user_id] = {'cards': [selected_card]}
-        print(f"New collection created for user {user_id}.")
+    # Check if the user already has a collection or create one
+    if user_id not in user_collection:
+        user_collection[user_id] = {'cards': []}
 
-    # Save the updated collection to the file
-    with open("collection.json", "w", encoding="utf-8") as data_file:
-        json.dump(user_collection, data_file, indent=4, ensure_ascii=False)
-    print(f"User collection saved successfully.")
+    # Add the selected card to the user's collection
+    user_collection[user_id]['cards'].append(selected_card)
+
+    # Save the updated collection back to the file
+    with open("collection.json", "w", encoding="utf-8") as f:
+        json.dump(user_collection, f, indent=4)
+
+    print(f"Added {selected_card} to {user_id}'s collection.")
+
+
+
+
