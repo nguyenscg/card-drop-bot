@@ -12,19 +12,27 @@ cards = [
 
 
 # Download image from URL
-def download_image(url):
+def download_image(image_url):
     try:
-        response = requests.get(url)
-        print(f"Downloading from {url}, Status code: {response.status_code}")  # Add this line for debugging
-        if response.status_code == 200:
-            return Image.open(BytesIO(response.content))
+        # If it's a URL, download it
+        response = requests.get(image_url)
+        image = Image.open(BytesIO(response.content))  # Converts to an image object
+        return image
     except Exception as e:
         print(f"Error downloading image: {e}")
-    return None
+        return None
 
 # Resize image to match frame size
-def resize_image(image, size=(500, 700)):
-    return image.resize(size, Image.Resampling.LANCZOS)
+def resize_image(image, max_size=(1024, 1024)):
+    """Resize image to fit within max_size."""
+    img = image.copy()
+    img.thumbnail(max_size, Image.Resampling.LANCZOS)  # Use LANCZOS for high-quality downsampling
+    return img
+
+def compress_image(image, output_path, quality=75):
+    """Compress image to a specified quality level."""
+    image.save(output_path, quality=quality, optimize=True)
+
 
 # Save image to disk and return the file path
 def save_image(image, filename):
@@ -36,45 +44,52 @@ def save_image(image, filename):
         return None
 
 # Add frame to the card
-def add_frame_to_card(card_img, frame_path, size=(500, 700)):
+def add_frame_to_card(image, frame_path):
     try:
-        card_img = resize_image(card_img, size).convert("RGBA")
-        frame = Image.open(frame_path).convert("RGBA").resize(size)
-        framed_card = Image.alpha_composite(card_img, frame)
-        
-        return framed_card  # Return the PIL.Image object directly instead of file path
+        # Load the frame image
+        frame = Image.open(frame_path)
+
+        # Resize the card image to fit the frame (if necessary)
+        image = image.resize(frame.size)
+
+        # Apply the frame to the card image
+        image_with_frame = Image.alpha_composite(image.convert("RGBA"), frame.convert("RGBA"))
+        return image_with_frame
     except Exception as e:
         print(f"Error adding frame to card: {e}")
         return None
 
 
 # Merge images horizontally, resize to match height
-def merge_images_horizontally(images, spacing=20):
-    if not images:
-        return None
+def resize_image_maintain_aspect_ratio(image, base_width):
+    """Resize the image to a specific width while maintaining aspect ratio."""
+    # Calculate the ratio of the new width to the old width
+    w_percent = base_width / float(image.size[0])
+    h_size = int(float(image.size[1]) * float(w_percent))
+    return image.resize((base_width, h_size), Image.Resampling.LANCZOS)
 
-    # Ensure all images are the same height
-    heights = [img.height for img in images]
-    target_height = min(heights)
+def merge_images_horizontally(images, spacing=100):
+    """Merge a list of images horizontally with specified spacing."""
+    
+    # Resize images to a consistent width while maintaining aspect ratio
+    base_width = 300  # Set the width for resizing
+    images = [resize_image_maintain_aspect_ratio(img, base_width) for img in images]
 
-    # Resize images to the same height and convert to RGB
-    resized_images = []
-    for img in images:
-        resized_img = img.resize((int(img.width * target_height / img.height), target_height))
-        resized_images.append(resized_img.convert("RGB"))  # Convert to RGB to avoid transparency issues
-
-    # Calculate total width with spacing
-    total_width = sum(img.width for img in resized_images) + spacing * (len(resized_images) - 1)
-
-    # Create a blank white background for the merged image
-    merged_image = Image.new("RGB", (total_width, target_height), (0, 0, 0))
-
-    # Paste images side-by-side with spacing
+    # Calculate the total width and height of the merged image with spacing
+    total_width = sum(img.width for img in images) + (spacing * (len(images) - 1))
+    max_height = max(img.height for img in images)
+    
+    # Create a new blank image with the calculated width and height
+    merged_image = Image.new('RGB', (total_width, max_height), (0, 0, 0))
+    
+    # Position for the first image
     x_offset = 0
-    for img in resized_images:
+    
+    # Paste each image into the merged image with spacing
+    for img in images:
         merged_image.paste(img, (x_offset, 0))
-        x_offset += img.width + spacing
-
+        x_offset += img.width + spacing  # Move the x_offset for the next image
+    
     return merged_image
 
 
