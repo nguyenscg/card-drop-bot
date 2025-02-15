@@ -20,8 +20,8 @@ bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
 # Load cards from the JSON file at startup
 try:
-    with open("cards.json", "r") as f:
-        cards = json.load(f)
+    with open("cards.json", encoding="utf-8") as file:
+        cards = json.load(file)
     print("Cards loaded:", cards)
 except FileNotFoundError:
     print("cards.json file not found. Please check if it exists.")
@@ -95,6 +95,12 @@ async def on_ready():
     channel = bot.get_channel(CHANNEL_ID)
     await channel.send(f"Yo! Mingyu bot just logged in.")
 
+def assign_random_rarity(card):
+    # Use random.choices() to select a rarity based on the weights
+    rarity = random.choices(list(rarities.keys()), list(rarities.values()), k=1)[0]
+    card['rarity'] = rarity
+    return card
+
 @bot.command()
 async def drop(ctx):
     user_id = ctx.author.id
@@ -142,6 +148,7 @@ async def drop(ctx):
     # Process and display the dropped cards
     card_images = []
     for card in dropped_cards:
+        assign_random_rarity(card)
         card_img = download_image(card['image'])
         if card_img:
             framed_card = add_frame_to_card(card_img, frame_path)
@@ -188,35 +195,77 @@ async def drop(ctx):
 
 
 
+import time
+
+# Store the cooldown timestamps for each user
+grab_cooldowns = {}
+
 @bot.event
 async def on_reaction_add(reaction, user):
     # Ignore the bot's reactions
     if user == bot.user:
-        return 
+        return
     
     user_id = user.id
     message_id = reaction.message.id
 
-    # Get the card's info from the message map
-    card = message_card_map.get(message_id)
+    # Get the list of cards from the message map
+    cards = message_card_map.get(message_id)
 
-    # If card doesn't exist, return early
-    if not card:
+    # If no cards exist, return early
+    if not cards:
+        return
+
+    # Define cooldown time (e.g., 1 hour = 3600 seconds)
+    cooldown_timer = 3600  # 1 hour cooldown
+    current_time = time.time()
+
+    # Check if the user is on cooldown
+    last_grab = grab_cooldowns.get(user_id, 0)
+    if current_time - last_grab < cooldown_timer:
+        remaining_time = cooldown_timer - (current_time - last_grab)
+        hours, remainder = divmod(remaining_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        timer_message = f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+        await reaction.message.channel.send(f"{user.mention}, please wait {timer_message} before grabbing another card!")
+        return
+
+    # Check the emoji of the reaction and map it to the correct card
+    if reaction.emoji == "🫰":
+        card = cards[0]  # First card
+    elif reaction.emoji == "🫶":
+        card = cards[1]  # Second card
+    elif reaction.emoji == "🥰":
+        card = cards[2]  # Third card
+    else:
+        return
+
+    # Process the card grab (frame and update cooldown)
+    if not os.path.isfile(frame_path):
+        await reaction.message.channel.send(f"Oops! The frame file is missing. Please try again later.")
         return
 
     # Download the card image
     card_image = download_image(card['image'])
     if not card_image:
-        print(f"Failed to download card image for {card['name']}")
+        await reaction.message.channel.send(f"Failed to download card image for {card['name']}")
         return
+    
+    rarity = card.get('rarity', 'Unknown')
 
     # Add frame to the card
-    framed_card = add_frame_to_card(card_image, "frame_path.png")
+    framed_card = add_frame_to_card(card_image, frame_path)
     if framed_card:
-        # Process the framed card (e.g., save, add to user's collection)
+        # Send a message to the channel indicating the user picked up the card
+        await reaction.message.channel.send(f"{user.mention} gained {rarity}-Tier **{card['name']}** photocard! 🤩")
         print(f"Framed card {card['name']} added!")
+
+        # Update the cooldown for the user
+        grab_cooldowns[user_id] = current_time  # Update the last grab time for the user
     else:
         print(f"Failed to frame card {card['name']}")
+
+
 
 
 @bot.command()
