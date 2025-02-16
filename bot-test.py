@@ -90,11 +90,6 @@ def assign_random_rarity(card):
 async def drop(ctx):
     user_id = ctx.author.id
     channel = bot.get_channel(CHANNEL_ID)
-
-    # send a message if !drop is used in the wrong channel
-    if ctx.channel.id != CHANNEL_ID:
-        await ctx.send(f"Hey! The photocards are not in this area.")
-        return
     
     # cooldown
     cooldown_timer = 3600

@@ -95,11 +95,34 @@ async def drop(ctx):
     card_images = []
     for card in dropped_cards:
         assign_random_rarity(card)
-        card_img = download_image(card['image'])
+        card_img = download_image(card["image"])
         if card_img:
             framed_card = add_frame_to_card(card_img, frame_path)
             if framed_card:
                 card_images.append(framed_card)
+    
+    if len(card_images) == len(dropped_cards):
+        # merge the photos horizontally
+        merged_image = merge_images_horizontally(card_images, spacing=30)
+
+        # resize image if needed
+        merged_image = resize_image(merged_image)
+
+        # compress if the image is too large
+        merged_image_path = "merged_image_with_frame.png"
+        merged_image.save(merged_image_path)
+
+        # Send the embed and image as a file
+        with open(merged_image_path, "rb") as f:
+            file = discord.File(f, filename="merged_image_with_frame.png")
+            embed.set_image(url="attachment://merged_image_with_frame.png")  # Attach image in embed
+            message = await ctx.send(embed=embed, file=file)  # Send message with file and embed
+        try:
+            os.remove(merged_image_path)
+            print(f"Deleted temporary file: {merged_image_path}")
+        except Exception as e:
+            print(f"Failed to delete {merged_image_path}: {e}")
+                
 
     # update cooldown timer on the user
     # drop_cooldowns[user_id] = current_time
