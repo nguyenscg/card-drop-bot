@@ -122,6 +122,17 @@ async def drop(ctx):
             print(f"Deleted temporary file: {merged_image_path}")
         except Exception as e:
             print(f"Failed to delete {merged_image_path}: {e}")
+        
+        # save card info
+        message_card_map[message.id] = {
+            "user_dropped": user_id,
+            "cards": dropped_cards,
+            "drop_time": current_time,
+        }
+        # Add reactions after sending the image
+        reactions = ["🫰", "🫶", "🥰"]
+        for reaction in reactions:
+            await message.add_reaction(reaction)
                 
 
     # update cooldown timer on the user
